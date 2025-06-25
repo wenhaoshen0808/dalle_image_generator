@@ -1,13 +1,58 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DALL·E 图像生成器</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; }
-    textarea, select, button { font-size: 16px; padding: 8px; }
-    #result img { max-width: 100%; margin-top: 20px; }
-    label { display: block; margin-top: 20px; }
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      max-width: 800px;
+      margin: auto;
+    }
+    textarea, button {
+      font-size: 16px;
+      padding: 10px;
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 10px;
+      font-family: sans-serif;
+    }
+    textarea::placeholder {
+      font-family: sans-serif;
+    }
+    #result img {
+      max-width: 100%;
+      margin-top: 20px;
+    }
+    .history-entry {
+      margin-top: 20px;
+      border-top: 1px solid #ccc;
+      padding-top: 10px;
+    }
+    .history-entry img {
+      max-width: 100%;
+      margin-top: 10px;
+    }
+    #exportBtn {
+      background-color: #007acc;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+    #exportBtn:hover {
+      background-color: #005f99;
+    }
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+      textarea {
+        font-size: 14px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -16,41 +61,64 @@
   <label for="prompt">输入你的描述（prompt）：</label>
   <textarea
     id="prompt"
-    placeholder="建议使用英文输入，控制在600字符内，避免输入暴力、血腥等敏感内容，细节越多生成结果越准确。默认尺寸1024×1024。prompt示例：A realistic orange tabby cat sitting upright on a wooden bench, playing a grand piano with its front paws. The scene is set in a cozy living room with warm sunlight streaming through a window, casting soft shadows. The cat looks focused and slightly curious. The piano has shiny black and white keys, and sheet music is placed on the stand. The style is a detailed digital painting with soft textures and warm tones."
     rows="10"
-    cols="100"
-    style="font-family: sans-serif;"
+    placeholder="建议使用英文输入，控制在600字符内，避免输入暴力、血腥等敏感内容。示例：A realistic orange tabby cat sitting upright on a vintage wooden stool, playing a glossy black grand piano with its front paws. The piano is inside a cozy, warmly lit living room with bookshelves, a patterned rug, and potted plants. Sunlight pours in through a large window, casting soft shadows across the floor. The cat wears a tiny red bowtie and looks focused and slightly curious. The scene is in a digital painting style with soft brush textures and warm tones."
   ></textarea>
 
-  <br>
   <button onclick="generateImage()">生成图像</button>
 
   <div id="result"></div>
 
+  <h2>历史记录</h2>
+  <button id="exportBtn" onclick="exportHistory()">导出历史记录为 TXT 文件</button>
+  <div id="history"></div>
+
   <script>
+    const resultDiv = document.getElementById('result');
+    const historyDiv = document.getElementById('history');
+
+    function saveToHistory(prompt, url) {
+      const records = JSON.parse(localStorage.getItem('history') || '[]');
+      records.unshift({ prompt, url });
+      localStorage.setItem('history', JSON.stringify(records));
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const records = JSON.parse(localStorage.getItem('history') || '[]');
+      historyDiv.innerHTML = '';
+      records.forEach(({ prompt, url }) => {
+        const div = document.createElement('div');
+        div.className = 'history-entry';
+        div.innerHTML = `<strong>Prompt:</strong> ${prompt}<br><img src="${url}" alt="history image">`;
+        historyDiv.appendChild(div);
+      });
+    }
+
     async function generateImage() {
       const prompt = document.getElementById('prompt').value.trim();
-      const resultDiv = document.getElementById('result');
-      resultDiv.innerHTML = '生成中...';
+      const size = '1024x1024'; // 固定尺寸
 
       if (!prompt) {
         resultDiv.innerHTML = '请输入 prompt 描述。';
         return;
       }
 
+      resultDiv.innerHTML = '生成中，请稍候...';
+
       try {
         const response = await fetch('https://dalle-git-main-wenhaos-projects-a4d51d32.vercel.app/api/generate-image', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ prompt })
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, size })
         });
 
         const data = await response.json();
 
         if (data.data && data.data[0] && data.data[0].url) {
-          resultDiv.innerHTML = `<img src="${data.data[0].url}" alt="生成结果">`;
+          const url = data.data[0].url;
+          resultDiv.innerHTML = `<img src="${url}" alt="生成结果">`;
+          saveToHistory(prompt, url);
         } else {
           resultDiv.innerHTML = '生成失败，请检查输入或稍后重试。';
         }
@@ -59,6 +127,24 @@
         resultDiv.innerHTML = '网络错误或服务器错误。';
       }
     }
+
+    function exportHistory() {
+      const records = JSON.parse(localStorage.getItem('history') || '[]');
+      let text = 'DALL·E 生成历史记录\n\n';
+      records.forEach((entry, i) => {
+        text += `#${i + 1}\nPrompt: ${entry.prompt}\nImage URL: ${entry.url}\n\n`;
+      });
+
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'dalle_history.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    renderHistory();
   </script>
 </body>
 </html>
